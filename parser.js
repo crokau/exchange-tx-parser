@@ -7,6 +7,7 @@ const fs = require('fs');
 const { decimals } = require("./config/tokenConfig")
 const BN = require('bignumber.js');
 const { ethers } = require("ethers");
+const { utcTimeToOnlyDate } = require("./helpers/time")
 
 /**
  * Extracts the Ethereum address and name from a table row using a regular expression
@@ -29,7 +30,11 @@ function extractEthereumAddressAndNameFromTableRow(row) {
 
 const convertTokenToDecimals = (amount, symbol) => {
     const decimal = decimals[symbol]
-    return new BN(amount).dividedBy(new BN(10**decimal)).toFixed(0)
+
+    if (decimal)
+        return new BN(amount).dividedBy(new BN(10**decimal)).toFixed(0)
+    else 
+        return new BN(amount).dividedBy(new BN(10**18)).toFixed(0)
 }
 
 async function getBlockTimestamps(blockNumbers) {
@@ -131,6 +136,7 @@ async function processTokens(tokens) {
                 const blockTimestamps = await getBlockTimestamps(blockNumbers)
                 logs.forEach((log, i) => {
                     logs[i]['utc_date_time_of_transfer']= blockTimestamps[i]
+                    logs[i]['utc_date_of_transfer']= utcTimeToOnlyDate(blockTimestamps[i])
                     delete logs[i].block_number;
                 });
 
@@ -153,7 +159,7 @@ async function processTokens(tokens) {
   }
 }
 
-fs.writeFile('data.csv', "tx,destination_address,exchange,token_name,token_erc20,number_of_coins_transferred,utc_date_of_transfer,utc_date_time_of_transfer\n", () => {})
+fs.writeFile('data.csv', "tx,destination_address,exchange,token_name,token_erc20,number_of_coins_transferred,utc_date_time_of_transfer,utc_date_of_transfer\n", () => {})
 
 processTokens(tokens).then(() => {
   console.log('All tokens processed!');
