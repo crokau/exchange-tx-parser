@@ -1,7 +1,12 @@
 {
+  "name": "exchange-tx-parser",
+  "version": "0.1.0",
+  "scripts": {
+    "start": "node parser.js"
+  },
   "dependencies": {
     "bignumber.js": "^9.1.1",
-    "ethers": "^6.3.0",
-    "phantomjs": "^2.1.7"
+    "dotenv": "^16.0.3",
+    "ethers": "^6.3.0"
   }
 }

@@ -8,6 +8,8 @@ const { decimals } = require("./config/tokenConfig")
 const BN = require('bignumber.js');
 const { ethers } = require("ethers");
 const { utcTimeToOnlyDate } = require("./helpers/time")
+require('dotenv').config();
+const rpc = process.env.RPC
 
 /**
  * Extracts the Ethereum address and name from a table row using a regular expression
@@ -47,8 +49,8 @@ async function getBlockTimestamps(blockNumbers) {
   }
   
   // Set up provider and contract instance
-  const provider = new ethers.getDefaultProvider("https://mainnet.infura.io/v3/f27f6ca095bb46d48132a0fab85df069");
-  const contractAddress = "0xdac17f958d2ee523a2206206994597c13d831ec7";
+  const provider = new ethers.getDefaultProvider(rpc);
+  const contractAddress = "0xdac17f958d2ee523a2206206994597c13d831ec7"; // just to setup filter
   const contract = new ethers.Contract(contractAddress, abi, provider);
   
   // Set up event filter
@@ -142,7 +144,7 @@ async function processTokens(tokens) {
 
                 // append csv
                 const csv = logs.map(row => Object.values(row).join(',')).join('\n');
-                fs.writeFile('data.csv', csv, { flag: 'a' }, (error) => {if (error) console.error(error);});
+                fs.writeFile('transactions.csv', csv, { flag: 'a' }, (error) => {if (error) console.error(error);});
                 if (logs[0]) {
                     console.log(`${logs[0].token_name} complete. \n`)
                 } else {
@@ -159,7 +161,7 @@ async function processTokens(tokens) {
   }
 }
 
-fs.writeFile('data.csv', "tx,destination_address,exchange,token_name,token_erc20,number_of_coins_transferred,utc_date_time_of_transfer,utc_date_of_transfer\n", () => {})
+fs.writeFile('transactions.csv', "tx,destination_address,exchange,token_name,token_erc20,number_of_coins_transferred,utc_date_time_of_transfer,utc_date_of_transfer\n", () => {})
 
 processTokens(tokens).then(() => {
   console.log('All tokens processed!');

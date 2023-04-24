@@ -19,3 +19,4 @@ node_modules/hawk/.travis.yml
 node_modules/hawk/.npmignore
 node_modules/cryptiles/.travis.yml
 node_modules/cryptiles/.npmignore
+.env
