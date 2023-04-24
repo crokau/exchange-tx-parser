@@ -2,6 +2,11 @@
 const pattern = /address\/(0x[a-fA-F0-9]{40}).*?>(.+?)<\/td><td class="sorting_1">(.+?)<\/td>/;
 const addresses = require("./raw_data/addresses.js")
 const tokens = require("./raw_data/500cryptos")
+const abi = require("./abi/erc20_usdt")
+const fs = require('fs');
+const { decimals } = require("./config/tokenConfig")
+const BN = require('bignumber.js');
+const { ethers } = require("ethers");
 
 /**
  * Extracts the Ethereum address and name from a table row using a regular expression
@@ -22,25 +27,141 @@ function extractEthereumAddressAndNameFromTableRow(row) {
     };
 }
 
-// Object.values(addresses).forEach(exchange => {
+const convertTokenToDecimals = (amount, symbol) => {
+    const decimal = decimals[symbol]
+    return new BN(amount).dividedBy(new BN(10**decimal)).toFixed(0)
+}
 
-//     const rows = exchange.split('<tr');
+async function getBlockTimestamps(blockNumbers) {
+    const blockPromises = blockNumbers.map((blockNumber) => provider.getBlock(blockNumber));
+    const blocks = await Promise.all(blockPromises);
+    const timestamps = blocks.map((block) => {
+      return block ? new Date(block.timestamp * 1000).toUTCString() : null;
+    });
+    return timestamps;
+  }
+  
+  // example usage
+  
 
-//     rows.forEach(row => {
-//         const ethereumAddressAndName = extractEthereumAddressAndNameFromTableRow(row);
-//         console.log(ethereumAddressAndName); // { name: 'Binance', address: '0x3f5ce5fbfe3e9af3971dd833d26ba9b5c936f0be' }
-//     });
+  
+
+
+  // Set up provider and contract instance
+  const provider = new ethers.getDefaultProvider("https://mainnet.infura.io/v3/f27f6ca095bb46d48132a0fab85df069");
+  const contractAddress = "0xdac17f958d2ee523a2206206994597c13d831ec7";
+  const contract = new ethers.Contract(contractAddress, abi, provider);
+  
+  // Set up event filter
+  const eventName = "Transfer";
+  const eventFilter = contract.filters[eventName]();
+
+  // Time deplay helper
+  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  
+  // Fetch event logs
+  async function fetchEventLogs (token) {
+
+    console.log(`Fetching ${token.name}`)
+
+    // Parse all exchange addresses into a big array of [address, name]
+    let exchanges = []
+    Object.values(addresses).forEach(exchange => {
+        const rows = exchange.split('<tr');
+        rows.forEach(row => {
+            const ethereumAddressAndName = extractEthereumAddressAndNameFromTableRow(row);
+            exchanges.push(ethereumAddressAndName)
+        }); 
+    });
     
-// });
+    // Fetch logs relative to current block number
+    const blockNumber = await provider.getBlockNumber();
+    const logs = await provider.getLogs({
+      fromBlock: blockNumber - 500,
+      toBlock: blockNumber,
+      address: token.platform.token_address,
+      topics: eventFilter.topics
+    });
 
-console.log(tokens)
+    // Get all the logs sorted by exchange
+    let exchangeLogs = []
+    logs.map((log, i) => {
+        // Filtering by standard Topic0 transfer. todo, add other different topics
+        if (log.topics[0] == '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef') { 
+            const decodedLog = contract.interface.decodeEventLog(eventName, log.data, log.topics);
 
-tokens.data.forEach(token => {
+            // Take the log and compare it to all echnage addresses
+            exchanges.forEach(exchange => {
+                if (exchange) {
+                    if (decodedLog[1].toLowerCase() == exchange.address.toLowerCase()) {
+                        exchangeLogs.push({
+                            block_number: log.blockNumber,
+                            tx: log.transactionHash,
+                            destination_address: exchange.address.toLowerCase(),
+                            exchange: exchange.name,
+                            token_name: token.name,
+                            token_erc20: token.platform.token_address,
+                            number_of_coins_transferred: convertTokenToDecimals(decodedLog[2], token.symbol),
+                        })
+                        return;
+                    }
+                }
+                
+            });
+            
+        }
+    });
+  
+    return exchangeLogs;
+  }
+
+
+// Main function -
+// 1. Get all the tokens and loop over them fetching event logs
+// 2. Sort the logs by exchange
+// 3. Append the date time to each log for convenience
+// 4. Write to csv
+async function processTokens(tokens) {
+  for (const token of tokens.data) {
+    // Do something with the token here...
     if (token.platform) {
         if (token.platform.id = 1337) {
-            console.log(token.name)
-            console.log(token.platform.token_address)
+            fetchEventLogs(token).then(async (logs, i) => {
+                // Get timestamps for all
+                let blockNumbers = [];
+                logs.forEach(log => {
+                    blockNumbers.push(log.block_number)
+                });
+                
+                const blockTimestamps = await getBlockTimestamps(blockNumbers)
+                logs.forEach((log, i) => {
+                    logs[i]['utc_date_time_of_transfer']= blockTimestamps[i]
+                    delete logs[i].block_number;
+                });
+
+                // append csv
+                const csv = logs.map(row => Object.values(row).join(',')).join('\n');
+                fs.writeFile('data.csv', csv, { flag: 'a' }, (error) => {if (error) console.error(error);});
+                if (logs[0]) {
+                    console.log(`${logs[0].token_name} complete. \n`)
+                } else {
+                    console.log(`No logs found for specified time period \n`)
+                }
+            }).catch((error) => {
+                console.error(error);
+            }); 
         }
     }
-});
 
+    // Wait for 5 seconds before processing the next token
+    await delay(2000);
+  }
+}
+
+fs.writeFile('data.csv', "tx,destination_address,exchange,token_name,token_erc20,number_of_coins_transferred,utc_date_of_transfer,utc_date_time_of_transfer\n", () => {})
+
+processTokens(tokens).then(() => {
+  console.log('All tokens processed!');
+}).catch((error) => {
+  console.error(error);
+});
