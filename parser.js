@@ -41,18 +41,13 @@ async function getBlockTimestamps(blockNumbers) {
     return timestamps;
   }
   
-  // example usage
-  
-
-  
-
-
   // Set up provider and contract instance
   const provider = new ethers.getDefaultProvider("https://mainnet.infura.io/v3/f27f6ca095bb46d48132a0fab85df069");
   const contractAddress = "0xdac17f958d2ee523a2206206994597c13d831ec7";
   const contract = new ethers.Contract(contractAddress, abi, provider);
   
   // Set up event filter
+  // Todo make event filter tighter to the exchange addresses
   const eventName = "Transfer";
   const eventFilter = contract.filters[eventName]();
 
@@ -165,3 +160,5 @@ processTokens(tokens).then(() => {
 }).catch((error) => {
   console.error(error);
 });
+
+
