@@ -79,7 +79,8 @@ async function getBlockTimestamps(blockNumbers) {
     // Fetch logs relative to current block number
     const blockNumber = await provider.getBlockNumber();
     const logs = await provider.getLogs({
-      fromBlock: blockNumber - 500,
+        // if token is usdc or usdt, limit log range
+      fromBlock: blockNumber - (token.symbol === "USDT" || token.symbol === "USDC" ? 500 : 10000),
       toBlock: blockNumber,
       address: token.platform.token_address,
       topics: eventFilter.topics
@@ -137,7 +138,7 @@ async function processTokens(tokens) {
                 
                 const blockTimestamps = await getBlockTimestamps(blockNumbers)
                 logs.forEach((log, i) => {
-                    logs[i]['utc_date_time_of_transfer']= blockTimestamps[i]
+                    logs[i]['utc_date_time_of_transfer']= blockTimestamps[i].split(',')[1]
                     logs[i]['utc_date_of_transfer']= utcTimeToOnlyDate(blockTimestamps[i])
                     delete logs[i].block_number;
                 });
